@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Fuel Truck Monitoring Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map { height: 400px; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; margin-top: 20px; }
+    td, th { border: 1px solid #ccc; padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <h2>Fuel Truck Monitoring Dashboard</h2>
+  <div id="map"></div>
+
+  <h3>Fuel Level & Alerts</h3>
+  <table id="alerts-table">
+    <thead>
+      <tr>
+        <th>Truck ID</th>
+        <th>Fuel Level</th>
+        <th>Latitude</th>
+        <th>Longitude</th>
+        <th>Alerts</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚚 Fuel Truck Monitoring Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    #map {
+      height: 600px;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .alert-enter {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .alert-enter-active {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 300ms, transform 300ms;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased">
+  <div class="container mx-auto px-4 py-8">
+    <header class="mb-8 text-center">
+      <h1 class="text-4xl font-bold text-gray-800 flex items-center justify-center gap-2">
+        <span>🚚</span> Fuel Truck Monitoring Dashboard
+      </h1>
+      <p class="text-gray-600 mt-2">Real-time tracking and alerts for your fleet</p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2">
+        <div class="bg-white rounded-lg shadow-lg p-4">
+          <div id="map"></div>
+        </div>
+      </div>
+      <div class="lg:col-span-1">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+          <h2 class="text-2xl font-semibold text-red-600 mb-4">🚨 Latest Alerts</h2>
+          <ul id="alerts-list" class="space-y-3 max-h-[500px] overflow-y-auto"></ul>
+        </div>
+        <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-3">Fleet Summary</h3>
+          <div id="fleet-summary" class="text-gray-600">
+            <p>Active Trucks: <span id="truck-count">0</span></p>
+            <p>Average Fuel Level: <span id="avg-fuel">0</span> liters</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-8 text-center text-gray-500 text-sm">
+      © 2025 Fuel Monitoring Solutions. All rights reserved.
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([23.5859, 58.4059], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+    }).addTo(map);
+
+    let markers = {};
+
+    async function fetchData() {
+      try {
+        const res = await fetch('http://localhost:8000/dashboard-data');
+        const data = await res.json();
+
+        // Update markers
+        data.vehicles.forEach(truck => {
+          const id = truck.truck_id;
+          const lat = truck.latitude;
+          const lon = truck.longitude;
+          const fuel = truck.fuel_level;
+
+          const popupContent = `
+            <div class="p-2">
+              <h3 class="font-bold">Truck ${id}</h3>
+              <p>Fuel: ${fuel} liters</p>
+              <p>Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}</p>
+            </div>
+          `;
+
+          if (markers[id]) {
+            markers[id].setLatLng([lat, lon]).setPopupContent(popupContent);
+          } else {
+            markers[id] = L.marker([lat, lon], {
+              icon: L.divIcon({
+                className: 'custom-icon',
+                html: `<div class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center">${id}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+              })
+            }).addTo(map).bindPopup(popupContent);
+          }
+        });
+
+        // Update alerts
+        const alertsList = document.getElementById('alerts-list');
+        alertsList.innerHTML = '';
+        data.alerts.forEach(alert => {
+          const li = document.createElement('li');
+          li.className = 'alert-enter bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md';
+          li.innerHTML = `
+            <span class="block text-sm font-medium text-red-700">[${alert.timestamp}]</span>
+            <span class="block text-sm text-gray-700">Truck ${alert.truck_id}: ${alert.message}</span>
+          `;
+          alertsList.appendChild(li);
+          setTimeout(() => li.className = 'alert-enter-active bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md', 10);
+        });
+
+        // Update fleet summary
+        document.getElementById('truck-count').textContent = data.vehicles.length;
+        const avgFuel = data.vehicles.reduce((sum, truck) => sum + truck.fuel_level, 0) / data.vehicles.length || 0;
+        document.getElementById('avg-fuel').textContent = avgFuel.toFixed(1);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        const alertsList = document.getElementById('alerts-list');
+        const li = document.createElement('li');
+        li.className = 'alert-enter bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-md';
+        li.innerHTML = `<span class="block text-sm text-yellow-700">Error fetching data. Retrying...</span>`;
+        alertsList.appendChild(li);
+        setTimeout(() => li.className = 'alert-enter-active bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-md', 10);
+      }
+    }
+
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>

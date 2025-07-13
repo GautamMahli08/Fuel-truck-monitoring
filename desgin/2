@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚚 Fuel Truck Monitoring Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    #map { height: 100vh; border-radius: 0.5rem; }
+    .sidebar { transition: width 0.3s; }
+    .alert-enter { opacity: 0; transform: translateX(-20px); }
+    .alert-enter-active { opacity: 1; transform: translateX(0); transition: opacity 300ms, transform 300ms; }
+    .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-900 text-white">
+  <div class="flex h-screen">
+    <div class="sidebar w-80 bg-gray-800 p-6 overflow-y-auto">
+      <h1 class="text-2xl font-bold mb-4 flex items-center gap-2">🚚 Fuel Dashboard</h1>
+      <div id="fleet-summary" class="mb-6">
+        <h3 class="text-lg font-semibold cursor-pointer" onclick="toggleSummary()">Fleet Summary</h3>
+        <div id="summary-content" class="mt-2 text-gray-300">
+          <p>Active Trucks: <span id="truck-count">0</span></p>
+          <p>Average Fuel: <span id="avg-fuel">0</span> liters</p>
+        </div>
+      </div>
+      <h2 class="text-xl font-semibold text-red-500 mb-4">🚨 Alerts</h2>
+      <ul id="alerts-list" class="space-y-3"></ul>
+    </div>
+    <div class="flex-1 p-4">
+      <div id="map"></div>
+      <div id="loading" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+  <footer class="absolute bottom-0 w-full text-center text-gray-500 text-sm py-2">© 2025 Fuel Monitoring Solutions</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([23.5859, 58.4059], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(map);
+
+    let markers = {};
+
+    async function fetchData() {
+      const loading = document.getElementById('loading');
+      loading.classList.remove('hidden');
+      try {
+        const res = await fetch('http://localhost:8000/dashboard-data');
+        const data = await res.json();
+
+        data.vehicles.forEach(truck => {
+          const id = truck.truck_id;
+          const lat = truck.latitude;
+          const lon = truck.longitude;
+          const fuel = truck.fuel_level;
+          const popupContent = `<div class="p-2"><h3 class="font-bold">Truck ${id}</h3><p>Fuel: ${fuel} liters</p></div>`;
+          if (markers[id]) {
+            markers[id].setLatLng([lat, lon]).setPopupContent(popupContent);
+          } else {
+            markers[id] = L.marker([lat, lon], {
+              icon: L.divIcon({ html: `<div class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center">${id}</div>`, iconSize: [32, 32], iconAnchor: [16, 16] })
+            }).addTo(map).bindPopup(popupContent).bindTooltip(`Truck ${id}: ${fuel}L`, { direction: 'top' });
+          }
+        });
+
+        const alertsList = document.getElementById('alerts-list');
+        alertsList.innerHTML = '';
+        data.alerts.forEach(alert => {
+          const li = document.createElement('li');
+          li.className = 'alert-enter bg-gray-700 border-l-4 border-red-500 p-4 rounded-r-md';
+          li.innerHTML = `<span class="block text-sm text-red-400">[${alert.timestamp}]</span><span class="block text-sm">Truck ${alert.truck_id}: ${alert.message}</span>`;
+          alertsList.appendChild(li);
+          setTimeout(() => li.className = 'alert-enter-active bg-gray-700 border-l-4 border-red-500 p-4 rounded-r-md', 10);
+        });
+
+        document.getElementById('truck-count').textContent = data.vehicles.length;
+        document.getElementById('avg-fuel').textContent = (data.vehicles.reduce((sum, truck) => sum + truck.fuel_level, 0) / data.vehicles.length || 0).toFixed(1);
+      } catch (error) {
+        console.error('Error:', error);
+        const li = document.createElement('li');
+        li.className = 'alert-enter bg-yellow-900 border-l-4 border-yellow-500 p-4 rounded-r-md';
+        li.innerHTML = `<span class="block text-sm text-yellow-400">Error fetching data</span>`;
+        alertsList.appendChild(li);
+        setTimeout(() => li.className = 'alert-enter-active bg-yellow-900 border-l-4 border-yellow-500 p-4 rounded-r-md', 10);
+      }
+      loading.classList.add('hidden');
+    }
+
+    function toggleSummary() {
+      const content = document.getElementById('summary-content');
+      content.classList.toggle('hidden');
+    }
+
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>
